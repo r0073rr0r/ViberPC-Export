@@ -1,0 +1,6 @@
+# Core (for the live methods: export, carve, hookkey, schema) - Viber must be running:
+frida
+frida-tools
+
+# Only for the offline 'open' method (opening a copy of the DB with SQLCipher):
+sqlcipher3-wheels

@@ -1,0 +1,22 @@
+# --- Private data: NEVER on GitHub ---
+# ignore the CONTENTS of export/, but keep the empty folder (.gitkeep)
+/export/*
+!/export/.gitkeep
+
+# secrets (keys, paths)
+.env
+
+# safety net: no database/log/dump anywhere should ever be committed
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+viber_messages*.txt
+contacts_dump*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

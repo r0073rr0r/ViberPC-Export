@@ -1,0 +1,41 @@
+# Pylint configuration for ViberPC-Export
+# Targets Python 3.10+ (see .github/workflows/pylint.yml).
+
+[MAIN]
+# Old/experimental scripts live in attic/ and are not part of the shipped tool.
+ignore-paths=^attic/.*$
+
+# Optional, platform-native dependencies. They are imported lazily and are not
+# installed in CI, so tell pylint not to flag them as import errors.
+ignored-modules=frida,frida_tools,sqlcipher3
+
+[FORMAT]
+max-line-length=120
+
+[MESSAGES CONTROL]
+# Disabled on purpose - each reflects an intentional style choice in this project,
+# not a defect:
+#   missing-function-docstring   small internal/CLI-handler functions
+#   import-outside-toplevel      deliberate lazy imports of heavy/optional deps
+#   broad-exception-caught       best-effort robustness around frida/console I/O
+#   unused-argument              argparse handlers share a (args) signature
+#   invalid-name                 short crypto/binary variable names (P, K, ...)
+#   multiple-statements          compact one-liners in the binary-carving code
+#   multiple-imports             stylistic; harmless
+#   consider-using-f-string      pre-existing %-formatting, functionally fine
+#   consider-using-with          intentional long-lived file handle in config
+#   too-many-*                   data-carving/parsing code is inherently branchy
+disable=missing-function-docstring,
+        import-outside-toplevel,
+        broad-exception-caught,
+        unused-argument,
+        invalid-name,
+        multiple-statements,
+        multiple-imports,
+        consider-using-f-string,
+        consider-using-with,
+        too-many-locals,
+        too-many-branches,
+        too-many-statements,
+        too-many-return-statements,
+        too-many-nested-blocks

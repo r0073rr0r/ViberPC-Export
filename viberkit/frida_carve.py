@@ -9,7 +9,8 @@ full address book is often NOT resident), and long messages on overflow pages ar
 truncated. Upside: works even when Qt symbols/connections differ (other version).
 Requires Viber running.
 """
-import time, struct, hashlib
+import struct
+import hashlib
 from datetime import datetime
 import frida
 from .frida_common import require_viber
@@ -41,7 +42,7 @@ def _varint(buf, p):
         if i == 8:
             return (val << 8) | b, 9
         val = (val << 7) | (b & 0x7F)
-        if not (b & 0x80):
+        if not b & 0x80:
             return val, i + 1
     return val, 9
 
@@ -225,8 +226,10 @@ def run(timeout=120):
         return nm or num or None
 
     def fmt(ms):
-        try:    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
-        except: return str(ms)
+        try:
+            return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return str(ms)
 
     rows = []
     for eid, msg in messages.items():

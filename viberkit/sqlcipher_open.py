@@ -20,8 +20,8 @@ def _need_sqlcipher():
     try:
         import sqlcipher3
         return sqlcipher3
-    except Exception:
-        raise SystemExit("[X] Missing 'sqlcipher3-wheels'.  pip install sqlcipher3-wheels")
+    except Exception as exc:
+        raise SystemExit("[X] Missing 'sqlcipher3-wheels'.  pip install sqlcipher3-wheels") from exc
 
 
 def _fresh_copy():

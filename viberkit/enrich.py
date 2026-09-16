@@ -108,6 +108,16 @@ def describe(row):
         return {"kind": "reaction", "text": "[reaction]", "caption": "",
                 "media_path": "", "thumb_path": "", "url": ""}
 
+    pin = info.get("pin")
+    if isinstance(pin, dict):
+        ptext = (pin.get("text") or "").strip()
+        if pin.get("action") == "create":
+            label = f'\U0001F4CC pinned a message: "{ptext[:60]}"' if ptext else "\U0001F4CC pinned a message"
+        else:
+            label = "\U0001F4CC unpinned a message"
+        return {"kind": "system", "text": label, "caption": "",
+                "media_path": "", "thumb_path": "", "url": ""}
+
     if body:
         return {"kind": "text", "text": body, "caption": "",
                 "media_path": "", "thumb_path": "", "url": ""}
@@ -117,7 +127,7 @@ def describe(row):
         return {"kind": "post", "text": subject, "caption": "",
                 "media_path": "", "thumb_path": "", "url": ""}
 
-    return {"kind": "system", "text": f"[event type {mtype}]", "caption": "",
+    return {"kind": "system", "text": "[system message]", "caption": "",
             "media_path": "", "thumb_path": "", "url": ""}
 
 

@@ -67,7 +67,19 @@ def test_reaction_token_row_without_info():
 
 def test_system_fallback():
     d = enrich.describe(_row(Type=72))
-    assert d["kind"] == "system" and "72" in d["text"]
+    assert d["kind"] == "system" and d["text"] == "[system message]"
+
+
+def test_pin_created():
+    info = '{"pin":{"action":"create","text":"read this"}}'
+    d = enrich.describe(_row(Type=15, Info=info))
+    assert d["kind"] == "system" and "pinned a message" in d["text"] and "read this" in d["text"]
+
+
+def test_pin_removed():
+    info = '{"pin":{"action":"delete","text":"old"}}'
+    d = enrich.describe(_row(Type=15, Info=info))
+    assert d["kind"] == "system" and d["text"] == "\U0001F4CC unpinned a message"
 
 
 def test_reactions_members_aggregate():

@@ -44,6 +44,11 @@ def viber_db():
     return hits[0] if hits else p
 
 
+def stickers_dir():
+    """Viber's on-disk sticker cache: %APPDATA%\\ViberPC\\data\\stickers."""
+    return os.path.join(os.environ.get("APPDATA", ""), "ViberPC", "data", "stickers")
+
+
 def self_number():
     """Your own account number - used to distinguish IN/OUT. From .env or from the DB path."""
     n = ENV.get("VIBER_SELF_NUMBER", "").strip()

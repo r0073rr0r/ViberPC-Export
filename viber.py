@@ -5,9 +5,10 @@ Methods (from recommended to auxiliary):
 
   export   Export the decrypted tables from the LIVE Viber connection to a clean file.  [RECOMMENDED]
            No key needed; uses Viber's already-unlocked engine. Viber must be running.
-  media    Copy the images/videos/files referenced by the export into export/media/.
+  media    Copy the images/videos/files/stickers referenced by the export into export/media/.
   log      Build a readable chronological log from the export (text, media, stickers, likes).
-  all      = export + media + log
+  html     Build a browsable HTML view of the chats (with embedded images).
+  all      = export + media + log + html
 
   carve    Fallback: carve messages out of Viber's RAM without the key (partial names).
   hookkey  Capture the SQLCipher key/salt that Viber sets (for the offline 'open').
@@ -42,11 +43,17 @@ def cmd_log(a):
     build_log.run(db=a.db)
 
 
+def cmd_html(a):
+    from viberkit import build_html
+    build_html.run(db=a.db)
+
+
 def cmd_all(a):
-    from viberkit import frida_export, export_media, build_log
+    from viberkit import frida_export, export_media, build_log, build_html
     if frida_export.run(timeout=a.timeout):
         export_media.run()
         build_log.run()
+        build_html.run()
 
 
 def cmd_carve(a):
@@ -110,7 +117,11 @@ def main():
     s.add_argument("--db", default=None, help="path to a clean .db (default export/viber_export.db)")
     s.set_defaults(func=cmd_log)
 
-    s = sub.add_parser("all", help="export + media + log")
+    s = sub.add_parser("html", help="build a browsable HTML view of the chats")
+    s.add_argument("--db", default=None, help="path to a clean .db (default export/viber_export.db)")
+    s.set_defaults(func=cmd_html)
+
+    s = sub.add_parser("all", help="export + media + log + html")
     s.add_argument("--timeout", type=int, default=90)
     s.set_defaults(func=cmd_all)
 

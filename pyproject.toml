@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "viberpc-export"
+version = "1.0.0"
+description = "Read and export your own Viber Desktop (ViberPC) message history on your own Windows PC."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "r0073rr0r" }]
+keywords = ["viber", "viberpc", "sqlcipher", "frida", "export", "forensics"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Communications :: Chat",
+]
+dependencies = [
+    "frida",
+    "frida-tools",
+]
+
+[project.optional-dependencies]
+offline = ["sqlcipher3-wheels"]
+dev = ["pylint==4.0.8", "pytest"]
+
+[project.urls]
+Homepage = "https://github.com/r0073rr0r/ViberPC-Export"
+Issues = "https://github.com/r0073rr0r/ViberPC-Export/issues"
+
+[project.scripts]
+viber-export = "viber:main"
+
+[tool.setuptools]
+py-modules = ["viber"]
+packages = ["viberkit"]

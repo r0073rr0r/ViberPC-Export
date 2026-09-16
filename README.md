@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+    <a href="https://github.com/r0073rr0r/ViberPC-Export/actions/workflows/tests.yml"><img src="https://github.com/r0073rr0r/ViberPC-Export/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
     <a href="https://github.com/r0073rr0r/ViberPC-Export/actions/workflows/pylint.yml"><img src="https://github.com/r0073rr0r/ViberPC-Export/actions/workflows/pylint.yml/badge.svg" alt="Pylint"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/r0073rr0r/ViberPC-Export" alt="License: GPL-3.0"></a>
     <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white" alt="Python 3.10+">
@@ -43,6 +44,11 @@ The readable log is then built from that clean file.
 ## ⚙️ Setup
 
 1. `pip install -r requirements.txt`
+   — or install it as a package to get the `viber-export` command:
+   ```bash
+   pip install .            # then use:  viber-export all
+   pip install .[offline]   # also pull in sqlcipher3-wheels for the 'open' method
+   ```
 2. Copy `.env.example` to `.env` and fill in if needed (usually you need **nothing** — the
    path and account number are auto-detected):
    ```
@@ -57,19 +63,24 @@ The readable log is then built from that clean file.
 ## 🚀 Usage
 
 ```bash
-python viber.py all            # RECOMMENDED: export + copy media + build the full log
+python viber.py all            # RECOMMENDED: export + media + log + html
 # or step by step:
 python viber.py export
 python viber.py media
 python viber.py log
+python viber.py html
 ```
+
+> If you installed it as a package (see [Setup](#️-setup)), use `viber-export all`
+> instead of `python viber.py all`.
 
 Output:
 - `export/viber_export.db` — the whole decrypted Viber (Contact, Messages, Events, …)
-- `export/media/<peer>/…` — the actual images, videos and files, copied per contact
+- `export/media/<peer>/…` — the actual images, videos, files and stickers, copied per contact
 - `export/media_index.csv` — which message each media file belongs to
-- `export/viber_messages.txt` — a readable chronological log (text, images, videos, files, stickers, links, reactions)
+- `export/viber_messages.txt` — a readable chronological log (text, images, videos, files, stickers, links, replies, reactions, edits)
 - `export/viber_log.jsonl` — the same log as structured JSON, one event per line (ideal for feeding to an AI)
+- `export/viber_chats.html` — a browsable chat view with embedded images (open it in a browser)
 
 > [!NOTE]
 > Viber does **not** store images inside `viber.db` — it only keeps the on-disk
@@ -84,9 +95,10 @@ waiting (this triggers a read from the DB) and run it again.
 | Command | What it does | Needs Viber? | Needs the key? |
 |---|---|:---:|:---:|
 | `export` | export from the live connection **(recommended)** | ✅ | ❌ |
-| `media` | copy images/videos/files into `export/media/` | ❌ | ❌ |
-| `log` | full log (text, media, stickers, likes) + JSONL | ❌ | ❌ |
-| `all` | `export` + `media` + `log` | ✅ | ❌ |
+| `media` | copy images/videos/files/stickers into `export/media/` | ❌ | ❌ |
+| `log` | full log (text, media, stickers, replies, reactions) + JSONL | ❌ | ❌ |
+| `html` | browsable HTML chat view with embedded images | ❌ | ❌ |
+| `all` | `export` + `media` + `log` + `html` | ✅ | ❌ |
 | `carve` | pull messages from RAM (partial names) | ✅ | ❌ |
 | `hookkey` | capture the SQLCipher key/salt | ✅ | — |
 | `open` | offline SQLCipher open of a copy | ❌ | ✅ |
@@ -123,12 +135,15 @@ viberkit/           # per-method logic
   frida_export.py     live export  [main]
   model.py            shared read model (contacts, peer resolution)
   enrich.py           message typing (media/stickers/links) + reactions
+  stickers.py         resolve sticker ids to cached PNGs
   export_media.py     copy media into export/media/
   build_log.py        full log (.txt + .jsonl) from the export
+  build_html.py       browsable HTML chat view
   frida_carve.py      carving from RAM
   frida_hookkey.py    key capture
   sqlcipher_open.py   offline opening
   frida_schema.py     schema from memory
+tests/              # pytest unit tests for the enrichment logic
 export/             # your data (gitignored, empty in the repo)
 attic/              # research notes + a probe tool (reference)
 .env / .env.example # secrets (ignored) / template

@@ -29,12 +29,13 @@ python viber.py doctor
 
 1. Create a branch from `main`: `git checkout -b feature/my-change`.
 2. Make your change. Keep it small and focused.
-3. Run the linter locally — CI runs the same check on Python 3.10–3.13:
+3. Run the tests and the linter locally — CI runs both on Python 3.10–3.13:
    ```bash
-   pip install "pylint==4.0.8"
+   pip install pytest "pylint==4.0.8"
+   pytest -q
    pylint $(git ls-files '*.py')
    ```
-   The build requires a clean run (score 10/10 with the repo's `.pylintrc`).
+   The build requires green tests and a clean lint (score 10/10 with the repo's `.pylintrc`).
 4. Never commit real data. `export/`, `*.db`, `*.txt` dumps and `.env` are
    already git-ignored — please keep it that way.
 5. Open a pull request against `main` and fill in the template.

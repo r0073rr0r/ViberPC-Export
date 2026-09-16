@@ -17,6 +17,7 @@ import shutil
 
 from . import config
 from . import enrich
+from . import stickers
 from .model import Model, require_db
 
 MEDIA_KINDS = ("image", "video", "file")
@@ -28,6 +29,26 @@ def _safe(name, fallback="unknown"):
     return (name or fallback)[:80]
 
 
+def _sticker(sticker_id, media_root, cache):
+    """Copy a sticker PNG (once per id) into media/stickers/. Return rel path."""
+    key = str(sticker_id)
+    if key in cache:
+        return cache[key]
+    src = stickers.resolve(sticker_id)
+    rel = ""
+    if src and os.path.exists(src):
+        dest_dir = os.path.join(media_root, "stickers")
+        os.makedirs(dest_dir, exist_ok=True)
+        dest = os.path.join(dest_dir, f"{int(sticker_id):08d}.png")
+        try:
+            shutil.copy2(src, dest)
+            rel = os.path.relpath(dest, config.EXPORT_DIR).replace(os.sep, "/")
+        except Exception:
+            rel = ""
+    cache[key] = rel
+    return rel
+
+
 def run(db=None, include_thumbs=True):
     db = require_db(db)
     model = Model(db)
@@ -35,7 +56,8 @@ def run(db=None, include_thumbs=True):
     os.makedirs(media_root, exist_ok=True)
 
     index_path = os.path.join(config.EXPORT_DIR, "media_index.csv")
-    saved = copied_orig = copied_thumb = missing = 0
+    saved = copied_orig = copied_thumb = copied_sticker = missing = 0
+    sticker_cache = {}
 
     with open(index_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
@@ -45,11 +67,24 @@ def run(db=None, include_thumbs=True):
         for r in model.events():
             row = dict(r)
             desc = enrich.describe(row)
+            _, peer = model.resolve(row["chat"], row["cid"], row["dir"])
+            direction = "OUT" if row["dir"] == 1 else "IN"
+
+            if desc["kind"] == "sticker":
+                rel = _sticker(row["StickerID"], media_root, sticker_cache)
+                writer.writerow([row["EventID"], model.iso(row["ts"]), direction,
+                                 peer, "sticker", "sticker" if rel else "missing",
+                                 "", rel])
+                if rel:
+                    saved += 1
+                    copied_sticker += 1
+                else:
+                    missing += 1
+                continue
+
             if desc["kind"] not in MEDIA_KINDS:
                 continue
 
-            _, peer = model.resolve(row["chat"], row["cid"], row["dir"])
-            direction = "OUT" if row["dir"] == 1 else "IN"
             src, status = desc["media_path"], "original"
             if not (src and os.path.exists(src)):
                 if include_thumbs and desc["thumb_path"] and os.path.exists(desc["thumb_path"]):
@@ -89,5 +124,6 @@ def run(db=None, include_thumbs=True):
     model.close()
     print(f"[OK] media -> {media_root}")
     print(f"     originals: {copied_orig}   thumbnails: {copied_thumb}   "
-          f"missing: {missing}   (index: {os.path.basename(index_path)})")
+          f"stickers: {copied_sticker}   missing: {missing}   "
+          f"(index: {os.path.basename(index_path)})")
     return media_root

@@ -54,6 +54,17 @@ def test_subject_fallback_when_no_body():
     assert d["kind"] == "post" and d["text"] == "Promo text"
 
 
+def test_reaction_token_row_renders_emoji():
+    info = '{"1on1reactions":{"reaction":2,"reaction_v1":2}}'
+    d = enrich.describe(_row(Type=0, Body="6253459179658317583", Info=info))
+    assert d["kind"] == "reaction" and d["text"] == "[reacted ❤️]"
+
+
+def test_reaction_token_row_without_info():
+    d = enrich.describe(_row(Type=0, Body="6253455409851423095"))
+    assert d["kind"] == "reaction" and d["text"] == "[reaction]"
+
+
 def test_system_fallback():
     d = enrich.describe(_row(Type=72))
     assert d["kind"] == "system" and "72" in d["text"]

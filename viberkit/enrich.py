@@ -95,6 +95,19 @@ def describe(row):
         return {"kind": kind, "text": text, "caption": body,
                 "media_path": payload, "thumb_path": thumb, "url": ""}
 
+    # Type=0 rows carry a message token as "body" - they are 1:1 reaction /
+    # receipt records, not real text. Render them as the reaction, not a number.
+    one_on_one = info.get("1on1reactions")
+    if isinstance(one_on_one, dict):
+        rid = one_on_one.get("reaction") or one_on_one.get("reaction_v1")
+        emoji = REACTION_EMOJI.get(str(rid))
+        text = f"[reacted {emoji}]" if emoji else "[reaction removed]"
+        return {"kind": "reaction", "text": text, "caption": "",
+                "media_path": "", "thumb_path": "", "url": ""}
+    if mtype == 0 and body.isdigit() and len(body) >= 16:
+        return {"kind": "reaction", "text": "[reaction]", "caption": "",
+                "media_path": "", "thumb_path": "", "url": ""}
+
     if body:
         return {"kind": "text", "text": body, "caption": "",
                 "media_path": "", "thumb_path": "", "url": ""}

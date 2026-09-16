@@ -25,9 +25,9 @@ def clean(s):
 
 # All Messages columns the enrich helpers may look at.
 MESSAGE_COLS = (
-    "EventID", "Type", "Body", "PayloadPath", "ThumbnailPath", "StickerID",
-    "Duration", "Info", "PGIsLiked", "PGLikeCount", "SelfReaction",
-    "MembersReactions", "AdminsReactions",
+    "EventID", "Type", "Subject", "Body", "PayloadPath", "ThumbnailPath",
+    "StickerID", "Duration", "Info", "PGIsLiked", "PGLikeCount",
+    "SelfReaction", "MembersReactions", "AdminsReactions",
 )
 
 

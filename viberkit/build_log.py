@@ -46,6 +46,7 @@ def run(db=None, out=None):
         row = dict(r)
         is_group, peer = model.resolve(row["chat"], row["cid"], row["dir"])
         desc = enrich.describe(row)
+        ctx = enrich.context(row)
         react_str, react_detail = enrich.reactions(row)
         saved = media_index.get(str(row["EventID"]))
         entries.append({
@@ -60,6 +61,8 @@ def run(db=None, out=None):
             "caption": desc["caption"],
             "url": desc["url"],
             "media_file": saved or desc["media_path"] or desc["thumb_path"],
+            "reply_to": ctx["reply_to"].replace("\r", " ").replace("\n", " "),
+            "edited": ctx["edited"],
             "reactions": react_str,
             "reactions_detail": react_detail,
         })
@@ -73,7 +76,13 @@ def run(db=None, out=None):
         for e in entries:
             head = f"[{e['time']}] {e['direction']:<3}"
             who = f"[{e['peer']}] {e['author']}" if e["is_group"] else e["peer"]
-            line = f"{head} {who}: {e['text']}"
+            text = e["text"]
+            if e["reply_to"]:
+                snip = e["reply_to"][:60] + ("…" if len(e["reply_to"]) > 60 else "")
+                text = f'↳(re: "{snip}") {text}'
+            if e["edited"]:
+                text += " (edited)"
+            line = f"{head} {who}: {text}"
             if e["reactions"]:
                 line += f"   {{reactions: {e['reactions']}}}"
             f.write(line + "\n")

@@ -99,8 +99,26 @@ def describe(row):
         return {"kind": "text", "text": body, "caption": "",
                 "media_path": "", "thumb_path": "", "url": ""}
 
+    subject = (row.get("Subject") or "").strip()
+    if subject:
+        return {"kind": "post", "text": subject, "caption": "",
+                "media_path": "", "thumb_path": "", "url": ""}
+
     return {"kind": "system", "text": f"[event type {mtype}]", "caption": "",
             "media_path": "", "thumb_path": "", "url": ""}
+
+
+def context(row):
+    """Reply/quote and edit context for a message.
+
+    Returns {"reply_to": <quoted text or ''>, "edited": <bool>}.
+    """
+    info = parse_info(row.get("Info"))
+    quote = info.get("quote")
+    reply_to = ""
+    if isinstance(quote, dict):
+        reply_to = (quote.get("text") or "").strip()
+    return {"reply_to": reply_to, "edited": "edit" in info}
 
 
 def reactions(row):

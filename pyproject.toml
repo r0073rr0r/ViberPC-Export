@@ -36,3 +36,6 @@ viber-export = "viber:main"
 [tool.setuptools]
 py-modules = ["viber"]
 packages = ["viberkit"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

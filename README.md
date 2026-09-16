@@ -57,15 +57,24 @@ The readable log is then built from that clean file.
 ## 🚀 Usage
 
 ```bash
-python viber.py all            # RECOMMENDED: export from the live Viber + build log
-# or in two steps:
+python viber.py all            # RECOMMENDED: export + copy media + build the full log
+# or step by step:
 python viber.py export
+python viber.py media
 python viber.py log
 ```
 
 Output:
 - `export/viber_export.db` — the whole decrypted Viber (Contact, Messages, Events, …)
-- `export/viber_messages.txt` — a readable chronological log
+- `export/media/<peer>/…` — the actual images, videos and files, copied per contact
+- `export/media_index.csv` — which message each media file belongs to
+- `export/viber_messages.txt` — a readable chronological log (text, images, videos, files, stickers, links, reactions)
+- `export/viber_log.jsonl` — the same log as structured JSON, one event per line (ideal for feeding to an AI)
+
+> [!NOTE]
+> Viber does **not** store images inside `viber.db` — it only keeps the on-disk
+> paths. `media` copies whatever still exists on disk; for received items that
+> were never downloaded it saves the thumbnail instead.
 
 If `export` says there was no activity, **open a chat in Viber** while the script is
 waiting (this triggers a read from the DB) and run it again.
@@ -75,8 +84,9 @@ waiting (this triggers a read from the DB) and run it again.
 | Command | What it does | Needs Viber? | Needs the key? |
 |---|---|:---:|:---:|
 | `export` | export from the live connection **(recommended)** | ✅ | ❌ |
-| `log` | log from the export | ❌ | ❌ |
-| `all` | `export` + `log` | ✅ | ❌ |
+| `media` | copy images/videos/files into `export/media/` | ❌ | ❌ |
+| `log` | full log (text, media, stickers, likes) + JSONL | ❌ | ❌ |
+| `all` | `export` + `media` + `log` | ✅ | ❌ |
 | `carve` | pull messages from RAM (partial names) | ✅ | ❌ |
 | `hookkey` | capture the SQLCipher key/salt | ✅ | — |
 | `open` | offline SQLCipher open of a copy | ❌ | ✅ |
@@ -111,7 +121,10 @@ viber.py            # CLI (all commands)
 viberkit/           # per-method logic
   config.py           .env + paths (outputs to export/)
   frida_export.py     live export  [main]
-  build_log.py        log from the export
+  model.py            shared read model (contacts, peer resolution)
+  enrich.py           message typing (media/stickers/links) + reactions
+  export_media.py     copy media into export/media/
+  build_log.py        full log (.txt + .jsonl) from the export
   frida_carve.py      carving from RAM
   frida_hookkey.py    key capture
   sqlcipher_open.py   offline opening

@@ -1,91 +1,90 @@
 """Builds a readable chronological log from the clean (decrypted) export.
 
 Works with both viber_export.db (live export) and viber_plain.db (offline 'open').
-Joins Events + Messages + Contact + ChatInfo + ChatRelation.
 
-Semantics (established from real data):
-  - Direction: 0 = IN (received), 1 = OUT (sent)
-  - Events.ContactID = the message AUTHOR; the peer is computed from chat members.
+Produces two files in export/:
+  - viber_messages.txt : human-readable log with text, media, stickers, likes
+  - viber_log.jsonl    : one JSON object per event (for feeding to an AI)
+
+If media was exported first (python viber.py media), the copied file paths are
+linked into both outputs via export/media_index.csv.
 """
-import os, sqlite3
-from datetime import datetime
+import csv
+import json
+import os
+
 from . import config
+from . import enrich
+from .model import Model, require_db
 
 
-def _load(db):
-    con = sqlite3.connect(db); con.row_factory = sqlite3.Row; c = con.cursor()
-    contacts, chatinfo, chatrel = {}, {}, {}
-    for r in c.execute("SELECT ContactID,Name,Number,ClientName FROM Contact"):
-        contacts[r["ContactID"]] = (r["Name"], r["Number"], r["ClientName"])
-    for r in c.execute("SELECT ChatID,Name FROM ChatInfo"):
-        chatinfo[r["ChatID"]] = r["Name"]
-    for r in c.execute("SELECT ChatID,ContactID FROM ChatRelation"):
-        chatrel.setdefault(r["ChatID"], []).append(r["ContactID"])
-    return con, c, contacts, chatinfo, chatrel
+def _media_index():
+    """EventID -> saved relative media path, from export/media_index.csv."""
+    path = os.path.join(config.EXPORT_DIR, "media_index.csv")
+    index = {}
+    if not os.path.exists(path):
+        return index
+    with open(path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row.get("saved_path"):
+                index[row["EventID"]] = row["saved_path"]
+    return index
 
 
 def run(db=None, out=None):
-    db = db or config.export_db_path()
+    db = require_db(db)
     out = out or config.log_path()
-    if not os.path.exists(db):
-        raise SystemExit(f"[X] No export found: {db}\n    Run first:  python viber.py export")
+    jsonl_out = os.path.splitext(out)[0].replace("_messages", "_log") + ".jsonl"
+    if jsonl_out == out:
+        jsonl_out = out + ".jsonl"
 
-    self_num = config.self_number()
-    con, c, contacts, chatinfo, chatrel = _load(db)
-    selfids = {cid for cid, (nm, num, cl) in contacts.items()
-               if num and self_num and self_num in num}
+    model = Model(db)
+    media_index = _media_index()
 
-    def clabel(cid):
-        ct = contacts.get(cid)
-        if not ct:
-            return None
-        nm = (ct[0] or ct[2] or "").strip()
-        num = ct[1] or ""
-        if nm and num:
-            return f"{nm} ({num})"
-        return nm or num or None
+    entries = []
+    for r in model.events():
+        row = dict(r)
+        is_group, peer = model.resolve(row["chat"], row["cid"], row["dir"])
+        desc = enrich.describe(row)
+        react_str, react_detail = enrich.reactions(row)
+        saved = media_index.get(str(row["EventID"]))
+        entries.append({
+            "ts": row["ts"],
+            "time": model.iso(row["ts"]),
+            "direction": "OUT" if row["dir"] == 1 else "IN",
+            "is_group": is_group,
+            "peer": peer,
+            "author": model.clabel(row["cid"]) or f"ContactID={row['cid']}",
+            "kind": desc["kind"],
+            "text": desc["text"].replace("\r", " ").replace("\n", " "),
+            "caption": desc["caption"],
+            "url": desc["url"],
+            "media_file": saved or desc["media_path"] or desc["thumb_path"],
+            "reactions": react_str,
+            "reactions_detail": react_detail,
+        })
 
-    def fmt(ms):
-        try:
-            return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            return str(ms)
+    entries.sort(key=lambda e: e["ts"])
 
-    def resolve(chat, author, direction):
-        members = [m for m in chatrel.get(chat, []) if m]
-        non_self = [m for m in members if m not in selfids]
-        chatname = (chatinfo.get(chat) or "").strip()
-        if len(non_self) > 1:                       # group
-            return True, chatname or "group"
-        if len(non_self) == 1:                      # 1:1
-            peer = clabel(non_self[0])
-        elif direction == 0:
-            peer = clabel(author)                   # incoming -> author is the peer
-        else:
-            peer = clabel(non_self[0]) if non_self else None
-        return False, (peer or chatname or f"ChatID={chat}")
-
-    rows = []
-    q = """SELECT e.TimeStamp ts, e.Direction dir, e.ChatID chat, e.ContactID cid, m.Body body
-           FROM Events e JOIN Messages m ON m.EventID=e.EventID
-           WHERE m.Body IS NOT NULL AND m.Body<>''"""
-    for r in c.execute(q):
-        is_group, peer = resolve(r["chat"], r["cid"], r["dir"])
-        author = clabel(r["cid"]) or f"ContactID={r['cid']}"
-        body = r["body"].replace("\r", " ").replace("\n", " ")
-        rows.append((r["ts"], r["dir"], is_group, peer, author, body))
-    con.close()
-
-    rows.sort(key=lambda x: x[0])
     with open(out, "w", encoding="utf-8") as f:
-        f.write(f"# Viber log - {len(rows)} messages\n")
-        f.write("# DIR: IN=received, OUT=sent. In groups the message author is also shown.\n\n")
-        for ts, d, grp, peer, author, body in rows:
-            dl = "OUT" if d == 1 else "IN "
-            if grp:
-                f.write(f"[{fmt(ts)}] {dl} [{peer}] {author}: {body}\n")
-            else:
-                f.write(f"[{fmt(ts)}] {dl} {peer}: {body}\n")
+        f.write(f"# Viber log - {len(entries)} events "
+                "(text, images, videos, files, stickers, links, reactions)\n")
+        f.write("# DIR: IN=received, OUT=sent. In groups the message author is shown.\n\n")
+        for e in entries:
+            head = f"[{e['time']}] {e['direction']:<3}"
+            who = f"[{e['peer']}] {e['author']}" if e["is_group"] else e["peer"]
+            line = f"{head} {who}: {e['text']}"
+            if e["reactions"]:
+                line += f"   {{reactions: {e['reactions']}}}"
+            f.write(line + "\n")
 
-    print(f"[OK] {len(rows)} messages -> {out}")
+    with open(jsonl_out, "w", encoding="utf-8") as f:
+        for e in entries:
+            slim = {k: v for k, v in e.items() if k != "ts"}
+            f.write(json.dumps(slim, ensure_ascii=False) + "\n")
+
+    model.close()
+    media_note = f"  (linked {len(media_index)} media files)" if media_index else ""
+    print(f"[OK] {len(entries)} events -> {out}")
+    print(f"[OK] {len(entries)} events -> {jsonl_out}{media_note}")
     return out

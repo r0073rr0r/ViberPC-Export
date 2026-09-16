@@ -5,8 +5,9 @@ Methods (from recommended to auxiliary):
 
   export   Export the decrypted tables from the LIVE Viber connection to a clean file.  [RECOMMENDED]
            No key needed; uses Viber's already-unlocked engine. Viber must be running.
-  log      Build a readable chronological log from the export (names, numbers, direction).
-  all      = export + log
+  media    Copy the images/videos/files referenced by the export into export/media/.
+  log      Build a readable chronological log from the export (text, media, stickers, likes).
+  all      = export + media + log
 
   carve    Fallback: carve messages out of Viber's RAM without the key (partial names).
   hookkey  Capture the SQLCipher key/salt that Viber sets (for the offline 'open').
@@ -31,14 +32,20 @@ def cmd_export(a):
         build_log.run()
 
 
+def cmd_media(a):
+    from viberkit import export_media
+    export_media.run(db=a.db, include_thumbs=not a.no_thumbs)
+
+
 def cmd_log(a):
     from viberkit import build_log
     build_log.run(db=a.db)
 
 
 def cmd_all(a):
-    from viberkit import frida_export, build_log
+    from viberkit import frida_export, export_media, build_log
     if frida_export.run(timeout=a.timeout):
+        export_media.run()
         build_log.run()
 
 
@@ -94,11 +101,16 @@ def main():
     s.add_argument("--no-log", dest="then_log", action="store_false", help="do not build the log afterwards")
     s.set_defaults(func=cmd_export, then_log=True)
 
+    s = sub.add_parser("media", help="copy images/videos/files into export/media/")
+    s.add_argument("--db", default=None, help="path to a clean .db (default export/viber_export.db)")
+    s.add_argument("--no-thumbs", action="store_true", help="skip thumbnails when the original is missing")
+    s.set_defaults(func=cmd_media)
+
     s = sub.add_parser("log", help="build the log from the export")
     s.add_argument("--db", default=None, help="path to a clean .db (default export/viber_export.db)")
     s.set_defaults(func=cmd_log)
 
-    s = sub.add_parser("all", help="export + log")
+    s = sub.add_parser("all", help="export + media + log")
     s.add_argument("--timeout", type=int, default=90)
     s.set_defaults(func=cmd_all)
 

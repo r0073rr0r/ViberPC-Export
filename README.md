@@ -23,20 +23,6 @@
 
 ---
 
-## 📑 Table of Contents
-
-- [🧠 How it works](#-how-it-works-short-version)
-- [📦 Requirements](#-requirements)
-- [⚙️ Setup](#️-setup)
-- [🚀 Usage](#-usage)
-- [🧰 All methods](#-all-methods)
-- [🔄 What if I close or update Viber?](#-what-if-i-close-or-update-viber)
-- [🗂️ Structure](#️-structure)
-- [🩺 Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
-- [🔐 Security](#-security)
-- [⚖️ Legal & License](#️-legal--license)
-
 ## 🧠 How it works (short version)
 
 Newer Viber versions **internally transform** the key, so `viber.db` cannot be opened with

@@ -38,6 +38,22 @@ def test_file():
     assert d["kind"] == "file" and "sheet.xlsx" in d["text"]
 
 
+def test_voice_note_in_ptt_folder():
+    d = enrich.describe(_row(Type=11, PayloadPath="C:/x/ViberDownloads/PTT/0-01-abc.m4a"))
+    assert d["kind"] == "voice" and d["text"] == "[Voice message]"
+    assert d["media_path"].endswith(".m4a")
+
+
+def test_voice_note_with_duration():
+    d = enrich.describe(_row(Type=11, PayloadPath="C:/x/PTT/note.m4a", Duration=14000))
+    assert d["kind"] == "voice" and d["text"] == "[Voice message 0:14]"
+
+
+def test_audio_file_outside_ptt_stays_file():
+    d = enrich.describe(_row(Type=11, PayloadPath="C:/Music/song.mp3"))
+    assert d["kind"] == "file" and "song.mp3" in d["text"]
+
+
 def test_link_uses_title():
     info = '{"URL":"https://e.com","Title":"Example"}'
     d = enrich.describe(_row(Type=9, Body="https://e.com", Info=info))

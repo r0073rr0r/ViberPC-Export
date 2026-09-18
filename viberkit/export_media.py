@@ -20,13 +20,23 @@ from . import enrich
 from . import stickers
 from .model import Model, require_db
 
-MEDIA_KINDS = ("image", "video", "file")
+MEDIA_KINDS = ("image", "video", "file", "voice")
 _SAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
 
 
 def _safe(name, fallback="unknown"):
     name = _SAFE.sub("_", (name or "").strip()).strip(". ")
     return (name or fallback)[:80]
+
+
+def _safe_file(name, fallback="file"):
+    """Sanitize a file name while keeping its extension. Only the stem is
+    length-capped, so long Viber hash names don't lose their `.m4a`/`.mp4`
+    suffix (which is what makes the copy openable without Viber)."""
+    stem, ext = os.path.splitext(name or "")
+    ext = _SAFE.sub("", ext)[:12]
+    stem = _SAFE.sub("_", stem.strip()).strip(". ")[:80] or fallback
+    return stem + ext
 
 
 def _sticker(sticker_id, media_root, cache):
@@ -99,7 +109,12 @@ def run(db=None, include_thumbs=True):
             peer_dir = os.path.join(media_root, _safe(peer, "unknown"))
             os.makedirs(peer_dir, exist_ok=True)
             date = model.fmt(row["ts"])[:10]
-            base = _safe(os.path.basename(src), f"file_{row['EventID']}")
+            if desc["kind"] == "voice":
+                # Give voice notes a readable name instead of the opaque hash.
+                ext = os.path.splitext(src)[1].lower() or ".m4a"
+                base = _safe_file(f"voice_{_safe(peer, 'contact')}{ext}")
+            else:
+                base = _safe_file(os.path.basename(src), f"file_{row['EventID']}")
             dest_name = f"{date}_{row['EventID']}_{base}"
             if status == "thumbnail":
                 dest_name = "thumb_" + dest_name

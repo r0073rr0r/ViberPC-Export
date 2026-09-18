@@ -8,6 +8,7 @@ Message Type codes (established from real data):
   3           video                 -> PayloadPath (+ Duration)
   9           link/URL preview      -> Info.Title / Info.Description / Info.URL
   11          file                  -> PayloadPath
+              voice note (PTT)      -> PayloadPath under a \\PTT\\ folder (.m4a)
   4           sticker               -> StickerID
   other       system / rich / bot   -> Body when present, else a type tag
 """
@@ -28,6 +29,19 @@ REACTION_EMOJI = {
 
 MEDIA_KIND = {2: "image", 3: "video", 11: "file"}
 TEXT_TYPES = {0, 1}
+
+# Extensions Viber uses for playable audio (voice notes are .m4a).
+AUDIO_EXT = {".m4a", ".mp3", ".aac", ".ogg", ".opus", ".wav", ".amr"}
+
+
+def is_voice(payload):
+    """True for a Viber voice note (push-to-talk). These are stored as audio
+    files inside a `PTT` download folder, so the folder is the reliable signal
+    (a plain song shared as a file is audio too, but is not a voice note)."""
+    if not payload:
+        return False
+    low = payload.replace("\\", "/").lower()
+    return "/ptt/" in low and os.path.splitext(low)[1] in AUDIO_EXT
 
 
 def parse_info(raw):
@@ -85,12 +99,20 @@ def describe(row):
 
     if payload or mtype in MEDIA_KIND:
         kind = MEDIA_KIND.get(mtype, "file")
-        name = os.path.basename(payload) if payload else "(not downloaded)"
-        label = {"image": "Image", "video": "Video", "file": "File"}[kind]
+        if kind == "file" and is_voice(payload):
+            kind = "voice"
         dur = _fmt_duration(row.get("Duration"))
-        tag = f"[{label}" + (f" {dur}" if dur else "") + f": {name}]"
-        if not payload:
-            tag += " (thumbnail only)" if thumb else " (missing on disk)"
+        if kind == "voice":
+            # The on-disk name is an opaque hash; show a clean voice tag instead.
+            tag = "[Voice message" + (f" {dur}" if dur else "") + "]"
+            if not payload:
+                tag = "[Voice message] (missing on disk)"
+        else:
+            name = os.path.basename(payload) if payload else "(not downloaded)"
+            label = {"image": "Image", "video": "Video", "file": "File"}[kind]
+            tag = f"[{label}" + (f" {dur}" if dur else "") + f": {name}]"
+            if not payload:
+                tag += " (thumbnail only)" if thumb else " (missing on disk)"
         text = f"{tag} {body}".strip() if body else tag
         return {"kind": kind, "text": text, "caption": body,
                 "media_path": payload, "thumb_path": thumb, "url": ""}

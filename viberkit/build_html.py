@@ -15,6 +15,7 @@ from .model import Model, require_db
 
 _IMG_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 _VID_EXT = {".mp4", ".webm", ".mov", ".m4v", ".3gp"}
+_AUD_EXT = {".m4a", ".mp3", ".aac", ".ogg", ".opus", ".wav", ".amr"}
 
 _CSS = """
 :root{--bg:#0b141a;--panel:#111b21;--in:#202c33;--out:#005c4b;--txt:#e9edef;
@@ -44,6 +45,7 @@ background:rgba(0,0,0,.2);color:var(--muted);font-size:13px;border-radius:4px}
 .msg img{max-width:260px;max-height:260px;border-radius:6px;display:block;margin:3px 0}
 .msg img.stk{max-width:120px}
 .msg video{max-width:280px;border-radius:6px;display:block;margin:3px 0}
+.msg audio{width:260px;max-width:100%;display:block;margin:3px 0}
 .msg a{color:#53bdeb}.react{font-size:12px;margin-top:2px}
 .edited{color:var(--muted);font-size:11px}
 """
@@ -54,7 +56,13 @@ function show(i){
  document.querySelectorAll('.peer').forEach(p=>p.classList.remove('active'));
  document.getElementById('chat'+i).classList.add('show');
  document.getElementById('peer'+i).classList.add('active');
- document.getElementById('main').scrollTop=0;
+ // Jump to the newest message (bottom), like a real chat client. Re-pin a
+ // couple of times so late layout (lazy images) still lands at the bottom.
+ const main=document.getElementById('main');
+ const pin=()=>{main.scrollTop=main.scrollHeight;};
+ pin();
+ requestAnimationFrame(pin);
+ setTimeout(pin,200);
 }
 window.onload=()=>show(0);
 """
@@ -76,6 +84,8 @@ def _media_html(rel):
     src = html.escape(rel)
     if ext in _VID_EXT:
         return f'<video controls src="{src}"></video>'
+    if ext in _AUD_EXT:
+        return f'<audio controls preload="none" src="{src}"></audio>'
     if ext in _IMG_EXT:
         cls = " class=stk" if "/stickers/" in rel else ""
         return f'<a href="{src}" target=_blank><img{cls} src="{src}" loading=lazy></a>'

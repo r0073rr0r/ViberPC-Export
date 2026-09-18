@@ -17,7 +17,7 @@ Instead, report privately through one of:
 
 - GitHub's [private vulnerability reporting](https://github.com/r0073rr0r/ViberPC-Export/security/advisories/new)
   (**Security → Report a vulnerability**), or
-- email **velimir.majstorov@meridianbet.com**.
+- email **velimir@majstorov.rs**.
 
 Include a description, steps to reproduce, and the impact. You can expect an
 initial response within a few days. Once a fix is available it will be released

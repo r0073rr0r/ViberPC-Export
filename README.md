@@ -24,6 +24,21 @@
 
 ---
 
+## 📚 Documentation
+
+This README is the short version. For step-by-step guides (including for non-technical
+users), see the **[Wiki](https://github.com/r0073rr0r/ViberPC-Export/wiki)**:
+
+- **[Installation](https://github.com/r0073rr0r/ViberPC-Export/wiki/Installation)** — from a fresh PC to a working tool
+- **[Quick Start](https://github.com/r0073rr0r/ViberPC-Export/wiki/Quick-Start)** — export everything with one command
+- **[Understanding the Output](https://github.com/r0073rr0r/ViberPC-Export/wiki/Understanding-the-Output)** — what each exported file is
+- **[Command Reference](https://github.com/r0073rr0r/ViberPC-Export/wiki/Command-Reference)** — every command and option
+- **[Extract the Key & Decrypt Offline](https://github.com/r0073rr0r/ViberPC-Export/wiki/Extract-the-Key-and-Decrypt-Offline)** — the `hookkey` + `open` path for older Viber
+- **[Media & Voice Messages](https://github.com/r0073rr0r/ViberPC-Export/wiki/Media-and-Voice-Messages)** — photos, videos, voice notes
+- **[Troubleshooting](https://github.com/r0073rr0r/ViberPC-Export/wiki/Troubleshooting)** · **[FAQ](https://github.com/r0073rr0r/ViberPC-Export/wiki/FAQ)**
+
+---
+
 ## 🧠 How it works (short version)
 
 Newer Viber versions **internally transform** the key, so `viber.db` cannot be opened with

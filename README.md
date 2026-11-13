@@ -103,7 +103,7 @@ Output:
 > were never downloaded it saves the thumbnail instead.
 
 `export` needs Viber to run one query on its database. It triggers that itself by
-opening the chat-info **Links / Files / GIFs** page through Windows UI Automation (no
+typing one letter into Viber's **search box** and clearing it, through Windows UI Automation (no
 mouse movement, no focus change, works while Viber is minimized). If that is not possible
 (or you pass `--no-nudge`), **open a chat in Viber** while the script is waiting.
 

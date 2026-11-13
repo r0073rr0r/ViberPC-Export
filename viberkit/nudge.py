@@ -1,10 +1,11 @@
 """Make Viber read its database without the user clicking anything.
 
 The live export only fires on a SELECT that Viber itself runs (right thread,
-autocommit). Opening the chat-info "Links"/"Files"/"GIFs" pages makes Viber
-query viber.db, so we invoke those buttons through Windows UI Automation:
-no mouse movement, no focus change, works while Viber is minimized. These
-pages only list content - we never touch any other control.
+autocommit). Typing into Viber's chat search makes it query viber.db every
+time (unlike chat/info pages, which Viber caches after the first open). We set
+the search box text to one letter and clear it again through Windows UI
+Automation: no mouse movement, no focus change, works while Viber is
+minimized. Searching only reads; no other control is touched.
 
 Uses PowerShell's built-in UIAutomationClient, so no extra Python dependency.
 """
@@ -12,37 +13,22 @@ import base64
 import ctypes
 import subprocess
 
-# Read-only info pages, tried in turn (each first open triggers a fresh query).
-SAFE_BUTTONS = ("Links", "Files", "GIFs")
-
 _PS = r"""
-param([long]$hwnd, [string]$name)
+param([long]$hwnd)
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $A = [System.Windows.Automation.AutomationElement]
-$T = [System.Windows.Automation.TreeScope]::Descendants
 $root = $A::FromHandle([IntPtr]$hwnd)
-function Find-Button($n) {
-  $c = New-Object System.Windows.Automation.AndCondition(
-    (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)),
-    (New-Object System.Windows.Automation.PropertyCondition($A::NameProperty, $n)))
-  return $root.FindFirst($T, $c)
-}
-$el = Find-Button $name
-if (-not $el) {
-  # Chat info sidebar closed: open it with the chat header's Info button.
-  $c = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-  foreach ($b in $root.FindAll($T, $c)) {
-    if ($b.Current.AutomationId -match '\.InfoButton_QMLTYPE_\d+$') {
-      $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-      Start-Sleep -Milliseconds 800
-      $el = Find-Button $name
-      break
-    }
+$c = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+foreach ($e in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $c)) {
+  if ($e.Current.AutomationId -match '\.SearchItem_QMLTYPE_\d+_QML_\d+\.TextFieldItem_QMLTYPE_\d+$') {
+    $v = $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+    $v.SetValue('a')
+    Start-Sleep -Milliseconds 1500
+    $v.SetValue('')
+    'invoked'; exit 0
   }
 }
-if (-not $el) { 'notfound'; exit 2 }
-$el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-'invoked'
+'notfound'
 """
 
 
@@ -67,11 +53,10 @@ def main_window(pid):
     return found[0] if found else None
 
 
-def poke(hwnd, attempt):
-    """Invoke one safe info page; returns True if a button was invoked."""
-    name = SAFE_BUTTONS[attempt % len(SAFE_BUTTONS)]
+def poke(hwnd):
+    """Run one search-and-clear in Viber; returns True if the search box was found."""
     # Wrap the script in a scriptblock so params can be passed via -EncodedCommand.
-    script = f"& {{ {_PS} }} {int(hwnd)} '{name}'"
+    script = f"& {{ {_PS} }} {int(hwnd)}"
     enc = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     try:
         out = subprocess.run(

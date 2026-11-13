@@ -141,11 +141,13 @@ def run(timeout=90, auto_nudge=True):
     next_poke, attempt = t0 + 2, 0
     while not state["done"] and time.time() - t0 < timeout:
         if hwnd and time.time() >= next_poke:
-            if nudge.poke(hwnd, attempt):
-                print("[i] asked Viber to read its DB (chat info page via UI Automation)")
+            # A miss is often transient (Qt builds its accessibility tree lazily on
+            # the first UI Automation query), so keep retrying until the timeout.
+            if nudge.poke(hwnd):
+                print("[i] asked Viber to read its DB (search via UI Automation)")
             elif attempt == 0:
-                print("[i] auto-trigger unavailable - click a chat in Viber manually.")
-                hwnd = None
+                print("[i] auto-trigger did not find Viber's search box yet - retrying; "
+                      "you can also click a chat in Viber.")
             attempt += 1
             next_poke = time.time() + 5
         time.sleep(0.2)

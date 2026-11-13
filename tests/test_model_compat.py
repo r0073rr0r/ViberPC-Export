@@ -2,8 +2,6 @@
 import json
 import sqlite3
 
-import pytest
-
 from viberkit import config, enrich
 from viberkit.model import Model
 
@@ -52,13 +50,15 @@ def _model(tmp_path, monkeypatch, schema):
     return Model(str(db))
 
 
-@pytest.mark.parametrize("schema", [OLD_SCHEMA, NEW_SCHEMA])
-def test_text_and_sticker_both_schemas(tmp_path, monkeypatch, schema):
-    model = _model(tmp_path, monkeypatch, schema)
-    rows = [dict(r) for r in model.events() if r["EventID"] > 0]
-    assert [enrich.describe(r)["kind"] for r in rows] == ["text", "sticker"]
-    assert enrich.describe(rows[1])["text"] == "[Sticker #40103]"
-    model.close()
+def test_text_and_sticker_both_schemas(tmp_path, monkeypatch):
+    for name, schema in (("old", OLD_SCHEMA), ("new", NEW_SCHEMA)):
+        sub = tmp_path / name
+        sub.mkdir()
+        model = _model(sub, monkeypatch, schema)
+        rows = [dict(r) for r in model.events() if r["EventID"] > 0]
+        model.close()
+        assert [enrich.describe(r)["kind"] for r in rows] == ["text", "sticker"], name
+        assert enrich.describe(rows[1])["text"] == "[Sticker #40103]", name
 
 
 def test_new_schema_skips_calls_and_adds_reactions(tmp_path, monkeypatch):

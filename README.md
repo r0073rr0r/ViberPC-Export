@@ -102,8 +102,13 @@ Output:
 > paths. `media` copies whatever still exists on disk; for received items that
 > were never downloaded it saves the thumbnail instead.
 
-If `export` says there was no activity, **open a chat in Viber** while the script is
-waiting (this triggers a read from the DB) and run it again.
+`export` needs Viber to run one query on its database. It triggers that itself by
+opening the chat-info **Links / Files / GIFs** page through Windows UI Automation (no
+mouse movement, no focus change, works while Viber is minimized). If that is not possible
+(or you pass `--no-nudge`), **open a chat in Viber** while the script is waiting.
+
+Viber **29.5+** merged the `Messages` table into `Events` and moved reactions into a
+`Reactions` table; the export and log handle both the old and the new layout.
 
 ## 🧰 All methods
 
@@ -171,8 +176,11 @@ new Viber version. Not needed for normal use.
 ## 🩺 Troubleshooting
 
 - **"Viber is not running"** — start and sign in to Viber Desktop.
-- **`export` doesn't trigger** — open a chat while the script waits; it watches for a read
-  on `viber.db`.
+- **`export` doesn't trigger** — the auto-trigger needs Viber's main window (it may be
+  minimized, not closed to tray). Otherwise open a chat while the script waits; it
+  watches for a read on `viber.db`.
+- **`Export incomplete: …`** — Viber changed its tables; the old export is kept. Run
+  `python viber.py schema` and compare with what `frida_export.py` expects.
 - **Viber freezes** — don't use experimental in-process result iteration; the main
   `export` only runs quick `exec()` calls and does not block.
 - **`open` fails on every variant** — the key is probably transformed internally (newer

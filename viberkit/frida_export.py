@@ -10,14 +10,21 @@ Requires: Viber Desktop running and logged in.
 """
 import os, time, json, sqlite3
 import frida
-from . import config
+from . import config, nudge
 from .frida_common import require_viber
 
-TABLES = ["Contact", "Messages", "Events", "ChatInfo", "ChatRelation"]
+# Tables that every supported Viber version has.
+REQUIRED = ["Contact", "Events", "ChatInfo", "ChatRelation"]
+# Version-dependent tables, copied when present. Viber <= 29.4 keeps message
+# content in a separate Messages table; 29.5+ merged it into Events (MessageType,
+# Body, ...) and moved reactions/metadata into Reactions / EventsMetaData.
+OPTIONAL = ["Messages", "Reactions", "EventsMetaData"]
+TABLES = REQUIRED + OPTIONAL
 
 JS = r"""
 var PLAIN = %%PLAIN%%;
 var TABLES = %%TABLES%%;
+var REQUIRED = %%REQUIRED%%;
 
 function expMap(n){var m=Process.findModuleByName(n),o={};if(!m)return o;m.enumerateExports().forEach(function(e){o[e.name]=e.address;});return o;}
 var S=expMap('Qt6Sql.dll'), C=expMap('Qt6Core.dll');
@@ -68,7 +75,8 @@ function harvest(conn){
   }
   try{ f_dtorQ(q); }catch(e){}
   try{ f_dtorDb(db); }catch(e){}
-  var ok = r.attach && r.tables && r.tables['Contact'];
+  var ok = !!(r.attach && r.tables);
+  for(var j=0; ok && j<REQUIRED.length; j++){ if(!r.tables[REQUIRED[j]]) ok=false; }
   send({t:'result', r:r, ok:ok?1:0});
   return ok;
 }
@@ -90,7 +98,7 @@ send({t:'armed', hooks:listeners.length});
 """
 
 
-def run(timeout=90):
+def run(timeout=90, auto_nudge=True):
     pid = require_viber()
     print(f"[i] Viber pid={pid}")
     out = config.export_db_path()
@@ -100,7 +108,8 @@ def run(timeout=90):
             os.remove(tmp + ext)
 
     js = (JS.replace("%%PLAIN%%", json.dumps(tmp.replace("\\", "/")))
-            .replace("%%TABLES%%", json.dumps(TABLES)))
+            .replace("%%TABLES%%", json.dumps(TABLES))
+            .replace("%%REQUIRED%%", json.dumps(REQUIRED)))
 
     state = {"done": False}
 
@@ -108,7 +117,7 @@ def run(timeout=90):
         if m.get("type") == "send":
             p = m["payload"]; t = p.get("t")
             if t == "armed":
-                print(f"[i] hooks: {p.get('hooks')} - if nothing happens in a few sec, click a chat in Viber")
+                print(f"[i] hooks: {p.get('hooks')}")
             elif t == "log":
                 print("   [js]", p.get("m"))
             elif t == "result":
@@ -125,8 +134,20 @@ def run(timeout=90):
     sc.on("message", on_msg)
     sc.load()
     print(f"[i] waiting for a SELECT on viber.db (up to {timeout}s)...")
+    hwnd = nudge.main_window(pid) if auto_nudge else None
+    if auto_nudge and not hwnd:
+        print("[i] Viber main window not found - click a chat in Viber manually.")
     t0 = time.time()
+    next_poke, attempt = t0 + 2, 0
     while not state["done"] and time.time() - t0 < timeout:
+        if hwnd and time.time() >= next_poke:
+            if nudge.poke(hwnd, attempt):
+                print("[i] asked Viber to read its DB (chat info page via UI Automation)")
+            elif attempt == 0:
+                print("[i] auto-trigger unavailable - click a chat in Viber manually.")
+                hwnd = None
+            attempt += 1
+            next_poke = time.time() + 5
         time.sleep(0.2)
     s.detach()
 
@@ -135,17 +156,42 @@ def run(timeout=90):
               "open a chat and run again. (The previous export is preserved.)")
         return False
 
-    os.replace(tmp, out)                     # success -> replace the original
     for ext in ("-wal", "-shm", "-journal"):
         if os.path.exists(tmp + ext):
             os.remove(tmp + ext)
+
+    problem = _validate(tmp)
+    if problem:
+        print(f"\n[X] Export incomplete: {problem}\n"
+              f"    The partial file was left at {tmp} for inspection; "
+              "the previous export is preserved.\n"
+              "    Run  python viber.py schema  to see whether Viber changed its tables.")
+        return False
+
+    os.replace(tmp, out)                     # success -> replace the original
     print(f"\n[i] export: {out}  ({os.path.getsize(out)} B)")
     con = sqlite3.connect(out); c = con.cursor()
     for t in TABLES:
         try:
             c.execute(f"SELECT count(*) FROM {t}")
             print(f"    {t}: {c.fetchone()[0]} rows")
-        except Exception as e:
-            print(f"    {t}: missing ({e})")
+        except Exception:
+            print(f"    {t}: not present in this Viber version")
     con.close()
     return True
+
+
+def _validate(path):
+    """Return a reason string if the export lacks what the log needs, else None."""
+    con = sqlite3.connect(path)
+    try:
+        have = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        missing = [t for t in REQUIRED if t not in have]
+        if missing:
+            return "missing tables: " + ", ".join(missing)
+        ev_cols = {r[1] for r in con.execute("PRAGMA table_info(Events)")}
+        if "Messages" not in have and "MessageType" not in ev_cols:
+            return "no message content (neither a Messages table nor Events.MessageType)"
+        return None
+    finally:
+        con.close()

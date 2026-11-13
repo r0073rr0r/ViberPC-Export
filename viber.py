@@ -29,7 +29,7 @@ import sys
 
 def cmd_export(a):
     from viberkit import frida_export, build_log
-    if frida_export.run(timeout=a.timeout) and a.then_log:
+    if frida_export.run(timeout=a.timeout, auto_nudge=a.nudge) and a.then_log:
         build_log.run()
 
 
@@ -50,7 +50,7 @@ def cmd_html(a):
 
 def cmd_all(a):
     from viberkit import frida_export, export_media, build_log, build_html
-    if frida_export.run(timeout=a.timeout):
+    if frida_export.run(timeout=a.timeout, auto_nudge=a.nudge):
         export_media.run()
         build_log.run()
         build_html.run()
@@ -106,6 +106,8 @@ def main():
     s = sub.add_parser("export", help="export from the live connection [recommended]")
     s.add_argument("--timeout", type=int, default=90)
     s.add_argument("--no-log", dest="then_log", action="store_false", help="do not build the log afterwards")
+    s.add_argument("--no-nudge", dest="nudge", action="store_false",
+                   help="do not auto-trigger Viber (wait for a manual chat click)")
     s.set_defaults(func=cmd_export, then_log=True)
 
     s = sub.add_parser("media", help="copy images/videos/files into export/media/")
@@ -123,6 +125,8 @@ def main():
 
     s = sub.add_parser("all", help="export + media + log + html")
     s.add_argument("--timeout", type=int, default=90)
+    s.add_argument("--no-nudge", dest="nudge", action="store_false",
+                   help="do not auto-trigger Viber (wait for a manual chat click)")
     s.set_defaults(func=cmd_all)
 
     s = sub.add_parser("carve", help="fallback: carve from RAM")

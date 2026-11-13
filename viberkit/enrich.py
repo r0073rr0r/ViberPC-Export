@@ -66,6 +66,17 @@ def _fmt_duration(millis):
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
+def _reaction_emoji(rid):
+    """Map a reaction id to its emoji. Viber 29.5+ may store the emoji itself
+    (any emoji, not just the 6 bar reactions); '' / '0' / None mean removed."""
+    rid = "" if rid is None else str(rid).strip()
+    if rid in REACTION_EMOJI:
+        return REACTION_EMOJI[rid]
+    if not rid or rid.isdigit():
+        return None
+    return rid
+
+
 def describe(row):
     """Summarize one message row (a plain dict).
 
@@ -122,7 +133,7 @@ def describe(row):
     one_on_one = info.get("1on1reactions")
     if isinstance(one_on_one, dict):
         rid = one_on_one.get("reaction") or one_on_one.get("reaction_v1")
-        emoji = REACTION_EMOJI.get(str(rid))
+        emoji = _reaction_emoji(rid)
         text = f"[reacted {emoji}]" if emoji else "[reaction removed]"
         return {"kind": "reaction", "text": text, "caption": "",
                 "media_path": "", "thumb_path": "", "url": ""}
@@ -185,7 +196,7 @@ def reactions(row):
     parts = []
     if others:
         parts.append(" ".join(
-            f"{REACTION_EMOJI.get(rid, '#' + rid)}×{cnt}"
+            f"{_reaction_emoji(rid) or '#' + rid}×{cnt}"
             for rid, cnt in sorted(others.items(), key=lambda kv: -kv[1])))
 
     self_reaction = (row.get("SelfReaction") or "").strip()

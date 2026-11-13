@@ -48,6 +48,40 @@ class Model:
         self_num = config.self_number()
         self.selfids = {cid for cid, (nm, num, cl) in self.contacts.items()
                         if num and self_num and self_num in num}
+        self.has_reactions_table = self._install_compat()
+
+    def _install_compat(self):
+        """Expose Viber 29.5+ data through the pre-29.5 shape the readers expect.
+
+        29.5 dropped the Messages table (its columns now live in Events, with
+        Type->MessageType and the sticker id in Body) and moved 1:1 reactions
+        out of message rows into a separate Reactions table. A TEMP view keeps
+        the export file untouched. Returns True when a Reactions table exists.
+        """
+        cur = self.con.cursor()
+        have = {r[0] for r in cur.execute(
+            "SELECT name FROM sqlite_master WHERE type IN ('table','view')")}
+        if "Messages" in have:
+            return False
+        ev_cols = {r[1] for r in cur.execute("PRAGMA table_info(Events)")}
+        if "MessageType" not in ev_cols:
+            return False
+        cur.execute(
+            "CREATE TEMP VIEW Messages AS SELECT EventID, MessageType AS Type, "
+            "NULL AS Subject, "
+            "CASE WHEN MessageType=4 THEN '' ELSE Body END AS Body, "
+            "PayloadPath, ThumbnailPath, "
+            "CASE WHEN MessageType=4 THEN Body ELSE 0 END AS StickerID, "
+            "Duration, Info, PGIsLiked, PGLikeCount, "
+            "SelfReaction, MembersReactions, AdminsReactions "
+            "FROM main.Events WHERE MessageType IS NOT NULL")
+        if "Reactions" not in have:
+            return False
+        # Reactions used to be their own message rows (Type=0); keep showing
+        # them as timeline events, with IN/OUT taken from who reacted.
+        cur.execute("CREATE TEMP TABLE compat_self(ContactID INTEGER PRIMARY KEY)")
+        cur.executemany("INSERT INTO compat_self VALUES (?)", [(c,) for c in self.selfids])
+        return True
 
     def clabel(self, cid):
         ct = self.contacts.get(cid)
@@ -93,9 +127,22 @@ class Model:
         cols = ",".join(f"m.{c} {c}" for c in MESSAGE_COLS)
         q = (f"SELECT e.TimeStamp ts, e.Direction dir, e.ChatID chat, "
              f"e.ContactID cid, {cols} "
-             "FROM Events e JOIN Messages m ON m.EventID=e.EventID "
-             "ORDER BY e.TimeStamp")
-        return self.con.execute(q)
+             "FROM Events e JOIN Messages m ON m.EventID=e.EventID")
+        if self.has_reactions_table:
+            # Synthetic rows shaped like the old 1:1 reaction messages. Negative
+            # EventIDs so they never collide with real events (media index).
+            special = {
+                "EventID": "-r.ReactionID",
+                "Type": "0",
+                "Info": "json_object('1on1reactions', json_object('reaction', r.ReactionType))",
+            }
+            rcols = ",".join(f"{special.get(c, 'NULL')} {c}" for c in MESSAGE_COLS)
+            q += (" UNION ALL SELECT r.TimeStamp ts, "
+                  "CASE WHEN r.ContactID IN (SELECT ContactID FROM compat_self) "
+                  "THEN 1 ELSE 0 END dir, "
+                  f"r.ChatID chat, r.ContactID cid, {rcols} "
+                  "FROM Reactions r")
+        return self.con.execute(q + " ORDER BY ts")
 
     def close(self):
         self.con.close()
